@@ -6,9 +6,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
-# --------------------------------
+# ----------------------------------
 # Page Config
-# --------------------------------
+# ----------------------------------
 
 st.set_page_config(
     page_title="Movie Review Sentiment Analysis",
@@ -16,16 +16,12 @@ st.set_page_config(
     layout="wide"
 )
 
-# --------------------------------
+# ----------------------------------
 # Custom CSS
-# --------------------------------
+# ----------------------------------
 
 st.markdown("""
 <style>
-
-.main {
-    background-color: #f5f7fa;
-}
 
 .header-box{
     background: linear-gradient(90deg,#2ec4b6,#a8dadc);
@@ -42,24 +38,24 @@ st.markdown("""
 }
 
 .header-sub{
-    color:#555;
     font-size:14px;
     letter-spacing:2px;
+    color:#555;
 }
 
 .metric-card{
     background:#d9f0ef;
     padding:20px;
-    border-radius:12px;
+    border-radius:15px;
     text-align:center;
-    box-shadow:0 3px 10px rgba(0,0,0,0.1);
+    box-shadow:0px 3px 10px rgba(0,0,0,0.15);
 }
 
 .sentiment-tag{
     background:#ff9f1c;
     color:black;
-    padding:5px 12px;
-    border-radius:15px;
+    padding:5px 15px;
+    border-radius:20px;
     font-weight:bold;
 }
 
@@ -70,249 +66,256 @@ st.markdown("""
     border:none;
     border-radius:8px;
     font-weight:bold;
+    height:50px;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
-# --------------------------------
+# ----------------------------------
 # Load Models
-# --------------------------------
+# ----------------------------------
 
 model_rnn = tf.keras.models.load_model("simple_rnn_model.h5")
 model_lstm = tf.keras.models.load_model("lstm_model.h5")
 model_gru = tf.keras.models.load_model("gru_model.h5")
 
-with open("tokenizer.pkl","rb") as f:
+# ----------------------------------
+# Load Tokenizer
+# ----------------------------------
+
+with open("tokenizer.pkl", "rb") as f:
     tokenizer = pickle.load(f)
 
 MAX_LENGTH = 200
 
-# --------------------------------
+# ----------------------------------
 # Header
-# --------------------------------
+# ----------------------------------
 
 st.markdown("""
-<div class='header-box'>
-<div class='header-title'>
-Movie Review Sentiment Analysis System
+<div class="header-box">
+<div class="header-title">
+🎬 Movie Review Sentiment Analysis System
 </div>
 
-<div class='header-sub'>
+<div class="header-sub">
 DEEP LEARNING BASED SENTIMENT CLASSIFICATION
 </div>
 </div>
 """, unsafe_allow_html=True)
 
-# --------------------------------
+# ----------------------------------
 # Model Selection
-# --------------------------------
+# ----------------------------------
 
 selected_model = st.radio(
     "Select Model",
-    ["SimpleRNN","LSTM","GRU"],
+    ["SimpleRNN", "LSTM", "GRU"],
     horizontal=True
 )
 
 review = st.text_area(
     "Enter Your Review",
-    height=150
+    height=180,
+    placeholder="Enter your movie review here..."
 )
 
-# --------------------------------
+# ----------------------------------
 # Prediction Function
-# --------------------------------
+# ----------------------------------
 
-def predict(model,text):
+def predict(model, text):
 
-    seq = tokenizer.texts_to_sequences([text])
+    sequence = tokenizer.texts_to_sequences([text])
 
-    pad = pad_sequences(
-        seq,
+    padded = pad_sequences(
+        sequence,
         maxlen=MAX_LENGTH,
-        padding='post'
+        padding="post",
+        truncating="post"
     )
 
-    pred = model.predict(
-        pad,
+    prediction = model.predict(
+        padded,
         verbose=0
     )[0][0]
 
     sentiment = (
         "Positive"
-        if pred>=0.5
+        if prediction >= 0.5
         else "Negative"
     )
 
     confidence = (
-        pred if pred>=0.5
-        else 1-pred
+        prediction
+        if prediction >= 0.5
+        else 1 - prediction
     )
 
-    return sentiment,confidence,pred
+    return sentiment, confidence, prediction
 
-# --------------------------------
+# ----------------------------------
 # Analyze Button
-# --------------------------------
+# ----------------------------------
 
 if st.button("Analyze Review"):
 
-    if review.strip()=="":
+    if review.strip() == "":
+        st.warning("Please enter a review.")
+        st.stop()
 
-        st.warning("Enter a review")
+    # Select model
+
+    if selected_model == "SimpleRNN":
+
+        model = model_rnn
+
+        model_desc = """
+        SimpleRNN processes text sequentially using hidden states.
+        It is fast and lightweight but may struggle to remember
+        information from long reviews.
+        """
+
+    elif selected_model == "LSTM":
+
+        model = model_lstm
+
+        model_desc = """
+        LSTM uses memory cells and gates to retain important
+        information over long sequences. It performs well on
+        long movie reviews.
+        """
 
     else:
 
-        rnn_s,rnn_c,rnn_p = predict(
-            model_rnn,
-            review
+        model = model_gru
+
+        model_desc = """
+        GRU is an optimized recurrent network with fewer parameters
+        than LSTM. It provides high accuracy while training faster.
+        """
+
+    sentiment, confidence, prob = predict(
+        model,
+        review
+    )
+
+    # ----------------------------------
+    # Result Card
+    # ----------------------------------
+
+    st.subheader("Prediction Result")
+
+    st.markdown(f"""
+    <div class='metric-card'>
+        <h3>{selected_model}</h3>
+        <span class='sentiment-tag'>{sentiment}</span>
+        <h1>{confidence*100:.2f}%</h1>
+        CONFIDENCE
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ----------------------------------
+    # Model Explanation
+    # ----------------------------------
+
+    st.markdown("---")
+
+    st.subheader("Model Explanation")
+
+    st.info(model_desc)
+
+    # ----------------------------------
+    # Sentiment Explanation
+    # ----------------------------------
+
+    st.subheader("Sentiment Explanation")
+
+    if sentiment == "Positive":
+
+        st.success(
+            "The review contains positive words and expressions. "
+            "The model predicts that the reviewer liked the movie."
         )
 
-        lstm_s,lstm_c,lstm_p = predict(
-            model_lstm,
-            review
+    else:
+
+        st.error(
+            "The review contains negative words and expressions. "
+            "The model predicts that the reviewer disliked the movie."
         )
 
-        gru_s,gru_c,gru_p = predict(
-            model_gru,
-            review
-        )
+    # ----------------------------------
+    # Probability Distribution
+    # ----------------------------------
 
-        # -------------------------
-        # Cards
-        # -------------------------
+    positive_prob = prob * 100
+    negative_prob = (1 - prob) * 100
 
-        st.subheader("Model Results")
+    st.markdown("---")
 
-        c1,c2,c3 = st.columns(3)
+    st.subheader("Probability Distribution")
 
-        with c1:
-            st.markdown(f"""
-            <div class='metric-card'>
-            <h4>SimpleRNN</h4>
-            <span class='sentiment-tag'>{rnn_s}</span>
-            <h2>{rnn_c*100:.1f}%</h2>
-            CONFIDENCE
-            </div>
-            """, unsafe_allow_html=True)
+    chart_df = pd.DataFrame({
 
-        with c2:
-            st.markdown(f"""
-            <div class='metric-card'>
-            <h4>LSTM</h4>
-            <span class='sentiment-tag'>{lstm_s}</span>
-            <h2>{lstm_c*100:.1f}%</h2>
-            CONFIDENCE
-            </div>
-            """, unsafe_allow_html=True)
+        "Sentiment": ["Positive", "Negative"],
 
-        with c3:
-            st.markdown(f"""
-            <div class='metric-card'>
-            <h4>GRU</h4>
-            <span class='sentiment-tag'>{gru_s}</span>
-            <h2>{gru_c*100:.1f}%</h2>
-            CONFIDENCE
-            </div>
-            """, unsafe_allow_html=True)
+        "Probability": [
+            positive_prob,
+            negative_prob
+        ]
+    })
 
-        # -------------------------
-        # Probability Chart
-        # -------------------------
+    fig = px.bar(
+        chart_df,
+        x="Sentiment",
+        y="Probability",
+        text="Probability"
+    )
 
-        st.subheader("Probability Distribution")
+    st.plotly_chart(
+        fig,
+        use_container_width=True
+    )
 
-        chart_df = pd.DataFrame({
-            "Model":["SimpleRNN","LSTM","GRU"],
-            "Positive":[
-                rnn_p*100,
-                lstm_p*100,
-                gru_p*100
-            ],
-            "Negative":[
-                (1-rnn_p)*100,
-                (1-lstm_p)*100,
-                (1-gru_p)*100
-            ]
-        })
+    # ----------------------------------
+    # Gauge Chart
+    # ----------------------------------
 
-        fig = px.bar(
-            chart_df,
-            x="Model",
-            y=["Positive","Negative"],
-            barmode="group"
-        )
+    st.subheader("Confidence Gauge")
 
-        st.plotly_chart(
-            fig,
-            use_container_width=True
-        )
-
-
-        # -------------------------
-        # Gauge Charts
-        # -------------------------
-
-    for model_name, confidence, sentiment in [
-
-    ("SimpleRNN", rnn_c*100, rnn_s),
-
-    ("LSTM", lstm_c*100, lstm_s),
-
-    ("GRU", gru_c*100, gru_s)
-
-]:
-
-        gauge = go.Figure(go.Indicator(
+    gauge = go.Figure(go.Indicator(
 
         mode="gauge+number",
 
-        value=confidence,
+        value=confidence * 100,
 
-        number={'suffix': "%"},
+        number={"suffix":"%"},
 
-        title={'text': model_name},
+        title={"text":selected_model},
 
         gauge={
-
-            'axis': {'range': [0,100]},
-
-            'bar': {'thickness': 0.3},
-
-            'steps': [
-
-                {'range': [0,50], 'color': "#ffd6d6"},
-
-                {'range': [50,100], 'color': "#d9f7e8"}
-
-            ]
+            "axis":{"range":[0,100]},
+            "bar":{"thickness":0.3}
         }
 
     ))
 
-    gauge.add_annotation(
-
-        x=0.5,
-        y=0.05,
-
-        text=f"<b>{sentiment.upper()}</b>",
-
-        showarrow=False,
-
-        font=dict(
-            size=18,
-            color="#ff9f1c"
-        )
-
+    sentiment_color = (
+        "#2ec4b6"
+        if sentiment == "Positive"
+        else "#e63946"
     )
 
-    gauge.update_layout(
-        height=300,
-        margin=dict(
-            t=50,
-            b=20,
-            l=20,
-            r=20
+    gauge.add_annotation(
+        x=0.5,
+        y=0.05,
+        text=f"<b>{sentiment.upper()}</b>",
+        showarrow=False,
+        font=dict(
+            size=22,
+            color=sentiment_color
         )
     )
 
@@ -321,6 +324,40 @@ if st.button("Analyze Review"):
         use_container_width=True
     )
 
-    st.success(
-            f"Selected Model ({selected_model}) Analysis Completed"
-        )
+    # ----------------------------------
+    # Compare All Models
+    # ----------------------------------
+
+    st.markdown("---")
+
+    st.subheader("Compare All Models")
+
+    rnn_s, rnn_c, _ = predict(model_rnn, review)
+    lstm_s, lstm_c, _ = predict(model_lstm, review)
+    gru_s, gru_c, _ = predict(model_gru, review)
+
+    comparison = pd.DataFrame({
+
+        "Model":[
+            "SimpleRNN",
+            "LSTM",
+            "GRU"
+        ],
+
+        "Sentiment":[
+            rnn_s,
+            lstm_s,
+            gru_s
+        ],
+
+        "Confidence (%)":[
+            round(rnn_c*100,2),
+            round(lstm_c*100,2),
+            round(gru_c*100,2)
+        ]
+    })
+
+    st.dataframe(
+        comparison,
+        use_container_width=True
+    )
